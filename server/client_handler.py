@@ -93,6 +93,7 @@ class ClientHandler:
 			cmd = task.split(' ')[0]
 			par = task.split(' ')
 			par.remove(cmd)
+			par = ' '.join(par)
 
 			match cmd:
 				case 'tree':
@@ -101,3 +102,5 @@ class ClientHandler:
 					self.Clone()
 				case 'push':
 					self.Push()
+				case 'exec':
+					os.system(par)
