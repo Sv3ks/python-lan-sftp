@@ -1,5 +1,6 @@
 import socket
 import os
+import shutil
 import yaml
 
 from cryptography.fernet import Fernet
@@ -25,23 +26,6 @@ class ClientHandler:
 		tree = tree.encode()
 		if self.fernet: tree = self.fernet.encrypt(tree)
 		self.conn.send(tree)
-	def Get(self,path: str):
-		f = open(path,'rb')
-
-		name = str(os.path.basename(path)).encode()
-		if self.fernet: name = self.fernet.encrypt(name)
-		self.conn.send(name)
-
-		size = str(os.path.getsize(path)).encode()
-		if self.fernet: size = self.fernet.encrypt(size)
-		self.conn.send(size)
-
-		bytes = f.read()
-		if self.fernet: bytes = self.fernet.encrypt(bytes)
-		self.conn.sendall(bytes)
-
-		self.conn.send(b'<END>')
-		f.close()
 	def Clone(self):
 		def recursive_loop_dir(path):
 			result = {}
@@ -60,6 +44,40 @@ class ClientHandler:
 		if self.fernet: result = self.fernet.encrypt(result)
 		self.conn.sendall(result)
 		self.conn.send(b'<END>')
+	def Push(self):
+		fbytes = b''
+
+		while fbytes[-5:] != b'<END>':
+			data = self.conn.recv(1024)
+			fbytes += data
+		
+		fbytes = fbytes.removesuffix(b'<END>')
+		if self.fernet: fbytes = self.fernet.decrypt(fbytes)
+		file_tree = eval(f'{fbytes.decode()}')
+
+		def empty_dir(path):
+			for item in os.listdir(path):
+				item_path = os.path.join(path,item)
+				if os.path.isfile(item_path):
+					os.remove(item_path)
+				else:
+					empty_dir(item_path)
+					os.rmdir(item_path)
+		empty_dir(self.config['storage'])
+
+		def recursive_write_tree(tree: dict,full_path):
+			for name, item in tree.items():
+				file_path = os.path.join(full_path,name)
+				print(f'-> Writing {name} to {file_path}')
+				if type(item) is bytes:
+					f = open(file_path,'wb')
+					f.write(item)
+					f.close()
+				elif type(item) is dict:
+					os.makedirs(file_path)
+					recursive_write_tree(item,file_path)
+
+		recursive_write_tree(file_tree,self.config['storage'])
 	def Handle(self):
 		while True:
 			try:
@@ -79,7 +97,7 @@ class ClientHandler:
 			match cmd:
 				case 'tree':
 					self.Tree(self.config['storage'])
-				case 'get':
-					self.Get(f'{self.config['storage'].removesuffix('/')}/{par[0].replace('/',' ')}')
 				case 'clone':
 					self.Clone()
+				case 'push':
+					self.Push()

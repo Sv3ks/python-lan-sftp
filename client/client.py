@@ -1,6 +1,7 @@
 import socket
 import yaml
 import os
+import shutil
 
 from cryptography.fernet import Fernet
 
@@ -44,13 +45,22 @@ while True:
 		if fernet: fbytes = fernet.decrypt(fbytes)
 		file_tree = eval(f'{fbytes.decode()}')
 
+		def empty_dir(path):
+			for item in os.listdir(path):
+				item_path = os.path.join(path,item)
+				if os.path.isfile(item_path):
+					os.remove(item_path)
+				else:
+					empty_dir(item_path)
+					os.rmdir(item_path)
+		empty_dir(config['storage'])
+
 		print('Writing data to client storage...')
-		#os.rmdir(config['storage'])
 
 		def recursive_write_tree(tree: dict,full_path):
 			for name, item in tree.items():
 				file_path = os.path.join(full_path,name)
-				print(f'Writing {name} to {file_path}')
+				print(f'-> Writing {name} to {file_path}')
 				if type(item) is bytes:
 					f = open(file_path,'wb')
 					f.write(item)
@@ -58,38 +68,24 @@ while True:
 				elif type(item) is dict:
 					os.makedirs(file_path)
 					recursive_write_tree(item,file_path)
-		print(file_tree)
+
 		recursive_write_tree(file_tree,config['storage'])
 		print('Done!')
+	elif cmd.lower().startswith('push'):
+		def recursive_loop_dir(path):
+			result = {}
+			for item in os.listdir(path):
+				item_path = os.path.join(path,item)
+				if os.path.isfile(item_path):
+					f = open(item_path,'rb')
+					result[item] = f.read()
+					f.close()
+				elif os.path.isdir(item_path):
+					result[item] = recursive_loop_dir(item_path)
+			return result
 
-	elif cmd.lower().startswith('get'):
-		print('Getting file information...')
-		name = client.recv(1024)
-		if fernet: name = fernet.decrypt(name)
-		name = name.decode()
-
-		size = client.recv(1024)
-		if fernet: size = fernet.decrypt(size)
-		size = size.decode()
-
-		file = open(f'{config['storage'].removesuffix('/')}/{name}','wb')
-		fbytes = b''
-
-		print('Getting file data...')
-		progress = 0
-		print(f'\r{progress}/{size}',end='')
-		while fbytes[-5:] != b'<END>':
-			data = client.recv(1024)
-			fbytes += data
-			progress += 1024
-			print(f'\r{progress}/{size}',end='')
-		
-		print(f'\r{size}/{size}',end='\n')
-
-		fbytes = fbytes.removesuffix(b'<END>')
-		if fernet: fbytes = fernet.decrypt(fbytes)
-
-		print('Writing file...')
-		file.write(fbytes)
-		file.close()
-		print('Done!')
+		filetree = recursive_loop_dir(config['storage'])
+		result = str(filetree).encode()
+		if fernet: result = fernet.encrypt(result)
+		client.sendall(result)
+		client.send(b'<END>')
