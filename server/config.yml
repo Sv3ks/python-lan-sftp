@@ -1,0 +1,6 @@
+host: 'localhost'
+port: 9450
+storage: 'storage/'
+encryption:
+  enabled: True
+  key: 'D8gQCqPDUesFBYOEMp9BR6trcUsaIZs5OH_ynIVsMWc='

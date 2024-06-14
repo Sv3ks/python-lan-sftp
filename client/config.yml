@@ -1,0 +1,8 @@
+storage: 'storage/'
+autoconnect:
+  enabled: True
+  host: 'localhost'
+  port: 9450
+encryption:
+  enabled: True
+  key: 'D8gQCqPDUesFBYOEMp9BR6trcUsaIZs5OH_ynIVsMWc='

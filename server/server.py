@@ -1,10 +1,14 @@
 import socket
 import threading
+import yaml
 
 from client_handler import ClientHandler
 
-host = 'localhost'
-port = 9450
+with open('config.yml', 'r') as file:
+	config = yaml.safe_load(file)
+
+host = config['host']
+port = config['port']
 
 server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 server.bind((host,port))
